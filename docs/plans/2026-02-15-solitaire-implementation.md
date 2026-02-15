@@ -6,27 +6,85 @@
 
 **Architecture:** Single-page Next.js app with static export. Pure TypeScript game engine (useReducer), DOM-based card rendering with CSS animations, Web Audio API for sounds, CSS custom properties for theming. No external dependencies beyond React/Next.js/Tailwind.
 
-**Tech Stack:** Next.js 16, React 19, TypeScript 5, Tailwind CSS 4
+**Tech Stack:** Next.js 16, React 19, TypeScript 5, Tailwind CSS 4, Vitest + React Testing Library
 
-**Repo:** `ridermw/conductor-playground` on GitHub. Each task below is an independent PR to `main`.
+**Repo:** `ridermw/conductor-playground` on GitHub (public). Each task below is an independent PR to `main`.
+
+**Branch protection:** `main` requires PRs and passing `build-and-test` CI check. No direct pushes.
 
 **GitHub Pages URL:** `https://ridermw.github.io/conductor-playground/`
 
+**Testing:** Every PR must include comprehensive unit tests. Target high coverage for all game logic, hooks, and component behavior. CI runs `pnpm test -- --coverage` and `pnpm build` as the `build-and-test` status check.
+
 ---
 
-## PR 1: GitHub Pages Deployment Pipeline
+## PR 1: Deployment Pipeline + Testing Infrastructure
 
-**Goal:** Configure Next.js for static export and deploy to GitHub Pages via GitHub Actions.
+**Goal:** Configure Next.js for static export, GitHub Pages deployment, and Vitest testing framework. Establishes the CI pipeline that gates all future PRs.
 
-**Branch:** `ridermw/pr1-gh-pages-deploy`
+**Branch:** `ridermw/pr1-deploy-and-testing`
 
 **Files:**
 - Modify: `next.config.ts`
 - Modify: `src/app/layout.tsx` (update metadata)
 - Modify: `src/app/page.tsx` (replace boilerplate with placeholder)
-- Create: `.github/workflows/deploy.yml`
+- Create: `.github/workflows/ci.yml` (build + test on PRs and push to main)
+- Create: `.github/workflows/deploy.yml` (deploy to GitHub Pages on push to main)
+- Create: `vitest.config.ts`
+- Create: `src/setupTests.ts`
+- Create: `src/__tests__/page.test.tsx` (smoke test)
 
-### Step 1: Configure Next.js for static export
+### Step 1: Install Vitest and React Testing Library
+
+Run:
+```bash
+pnpm add -D vitest @vitejs/plugin-react jsdom @testing-library/react @testing-library/jest-dom @testing-library/user-event @vitest/coverage-v8
+```
+
+### Step 2: Create vitest.config.ts
+
+```typescript
+import { defineConfig } from "vitest/config";
+import react from "@vitejs/plugin-react";
+import path from "path";
+
+export default defineConfig({
+  plugins: [react()],
+  test: {
+    environment: "jsdom",
+    globals: true,
+    setupFiles: ["./src/setupTests.ts"],
+    coverage: {
+      provider: "v8",
+      reporter: ["text", "text-summary", "lcov"],
+      include: ["src/**/*.{ts,tsx}"],
+      exclude: ["src/**/*.test.{ts,tsx}", "src/setupTests.ts", "src/app/layout.tsx"],
+    },
+  },
+  resolve: {
+    alias: {
+      "@": path.resolve(__dirname, "./src"),
+    },
+  },
+});
+```
+
+### Step 3: Create src/setupTests.ts
+
+```typescript
+import "@testing-library/jest-dom/vitest";
+```
+
+### Step 4: Add test scripts to package.json
+
+Add to `scripts`:
+```json
+"test": "vitest run",
+"test:watch": "vitest",
+"test:coverage": "vitest run --coverage"
+```
+
+### Step 5: Configure Next.js for static export
 
 Modify `next.config.ts`:
 
@@ -44,7 +102,7 @@ const nextConfig: NextConfig = {
 export default nextConfig;
 ```
 
-### Step 2: Update layout metadata
+### Step 6: Update layout metadata
 
 Modify `src/app/layout.tsx` — change the metadata:
 
@@ -55,7 +113,7 @@ export const metadata: Metadata = {
 };
 ```
 
-### Step 3: Replace page.tsx with placeholder
+### Step 7: Replace page.tsx with placeholder
 
 Replace `src/app/page.tsx` with:
 
@@ -69,7 +127,52 @@ export default function Home() {
 }
 ```
 
-### Step 4: Create GitHub Actions deploy workflow
+### Step 8: Write smoke test
+
+Create `src/__tests__/page.test.tsx`:
+
+```tsx
+import { render, screen } from "@testing-library/react";
+import { describe, it, expect } from "vitest";
+import Home from "../app/page";
+
+describe("Home page", () => {
+  it("renders the coming soon heading", () => {
+    render(<Home />);
+    expect(screen.getByText(/Solitaire/i)).toBeInTheDocument();
+  });
+});
+```
+
+### Step 9: Create CI workflow (runs on PRs — this is the `build-and-test` check)
+
+Create `.github/workflows/ci.yml`:
+
+```yaml
+name: build-and-test
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test -- --coverage
+      - run: pnpm build
+```
+
+### Step 10: Create deploy workflow (runs on push to main)
 
 Create `.github/workflows/deploy.yml`:
 
@@ -102,6 +205,7 @@ jobs:
           node-version: 20
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - run: pnpm test -- --coverage
       - run: pnpm build
       - uses: actions/upload-pages-artifact@v3
         with:
@@ -118,27 +222,27 @@ jobs:
         uses: actions/deploy-pages@v4
 ```
 
-### Step 5: Verify build works locally
+### Step 11: Verify locally
 
-Run: `pnpm build`
-Expected: Successful static export to `out/` directory.
+Run: `pnpm test` — expect 1 passing test.
+Run: `pnpm build` — expect successful static export to `out/`.
 
-### Step 6: Commit and create PR
+### Step 12: Commit and create PR
 
 ```bash
 git checkout main && git pull
-git checkout -b ridermw/pr1-gh-pages-deploy
-git add next.config.ts src/app/layout.tsx src/app/page.tsx .github/workflows/deploy.yml
-git commit -m "Configure GitHub Pages deployment with static export"
+git checkout -b ridermw/pr1-deploy-and-testing
+git add next.config.ts src/app/layout.tsx src/app/page.tsx .github/ vitest.config.ts src/setupTests.ts src/__tests__/ package.json pnpm-lock.yaml
+git commit -m "Configure GitHub Pages deploy, Vitest testing, and CI pipeline"
 ```
 
-Create PR to `main`, merge it. Verify GitHub Pages deploys at `https://ridermw.github.io/conductor-playground/`.
+Create PR to `main`. CI must pass (the `build-and-test` check). Merge. Verify GitHub Pages deploys.
 
 ---
 
 ## PR 2: Game Engine — Types, State, and Rules
 
-**Goal:** Build the pure TypeScript game engine with all Klondike rules, shuffling, dealing, and undo. No UI in this PR.
+**Goal:** Build the pure TypeScript game engine with all Klondike rules, shuffling, dealing, and undo. Comprehensive test coverage for all game logic.
 
 **Branch:** `ridermw/pr2-game-engine`
 
@@ -147,6 +251,9 @@ Create PR to `main`, merge it. Verify GitHub Pages deploys at `https://ridermw.g
 - Create: `src/game/deck.ts`
 - Create: `src/game/rules.ts`
 - Create: `src/game/reducer.ts`
+- Create: `src/__tests__/game/deck.test.ts`
+- Create: `src/__tests__/game/rules.test.ts`
+- Create: `src/__tests__/game/reducer.test.ts`
 
 ### Step 1: Define types
 
@@ -160,7 +267,7 @@ export interface Card {
   suit: Suit;
   rank: Rank;
   faceUp: boolean;
-  id: string; // e.g. "hearts-7" — unique identifier for React keys and drag tracking
+  id: string; // e.g. "hearts-7"
 }
 
 export type PileType = "stock" | "waste" | "tableau" | "foundation";
@@ -179,16 +286,16 @@ export interface GameState {
   tableau: Card[][]; // 7 columns
   foundations: Card[][]; // 4 piles (spades, hearts, diamonds, clubs)
   drawMode: DrawMode;
-  history: GameState[]; // previous states for undo (stored without their own history to avoid deep nesting)
+  history: GameState[]; // previous states for undo (stored without their own history)
   gameWon: boolean;
   winCount: number; // tracks wins for rotating celebrations
 }
 
 export type GameAction =
   | { type: "NEW_GAME"; drawMode: DrawMode }
-  | { type: "DRAW" } // flip card(s) from stock to waste
+  | { type: "DRAW" }
   | { type: "MOVE"; from: Location; to: Location }
-  | { type: "AUTO_MOVE"; cardId: string } // double-click auto-move
+  | { type: "AUTO_MOVE"; cardId: string }
   | { type: "UNDO" }
   | { type: "AUTO_COMPLETE" };
 ```
@@ -213,7 +320,6 @@ export function createDeck(): Card[] {
   return cards;
 }
 
-/** Fisher-Yates shuffle */
 export function shuffle(cards: Card[]): Card[] {
   const shuffled = [...cards];
   for (let i = shuffled.length - 1; i > 0; i--) {
@@ -225,10 +331,6 @@ export function shuffle(cards: Card[]): Card[] {
 
 export function isRed(suit: Suit): boolean {
   return suit === "hearts" || suit === "diamonds";
-}
-
-export function isBlack(suit: Suit): boolean {
-  return suit === "spades" || suit === "clubs";
 }
 
 export function oppositeColor(a: Suit, b: Suit): boolean {
@@ -244,108 +346,302 @@ export const SUIT_SYMBOL: Record<Suit, string> = {
   spades: "\u2660", hearts: "\u2665", diamonds: "\u2666", clubs: "\u2663",
 };
 
-/** Foundation suit order — index matches foundations array */
 export const FOUNDATION_SUITS: Suit[] = ["spades", "hearts", "diamonds", "clubs"];
 ```
 
-### Step 3: Create rules module
+### Step 3: Write deck tests
+
+Create `src/__tests__/game/deck.test.ts`:
+
+Tests to write:
+- `createDeck()` returns 52 cards
+- `createDeck()` returns 13 cards per suit
+- `createDeck()` returns all unique card IDs
+- `createDeck()` returns all cards face-down
+- `shuffle()` returns same number of cards
+- `shuffle()` returns same set of cards (no duplicates/losses)
+- `shuffle()` produces a different order (with high probability — run 10 shuffles, at least one differs)
+- `shuffle()` does not mutate original array
+- `isRed()` returns true for hearts and diamonds
+- `isRed()` returns false for spades and clubs
+- `oppositeColor()` returns true for red+black pairs
+- `oppositeColor()` returns false for same-color pairs
+- `RANK_DISPLAY` maps all 13 ranks correctly
+- `SUIT_SYMBOL` maps all 4 suits to correct unicode characters
+
+### Step 4: Create rules module
 
 Create `src/game/rules.ts`:
 
 Implements:
-- `canMoveToTableau(card: Card, targetColumn: Card[]): boolean` — checks alternating color, descending rank, Kings on empty
-- `canMoveToFoundation(card: Card, targetFoundation: Card[]): boolean` — checks same suit, ascending rank, Ace on empty
-- `findAutoMoveTarget(card: Card, state: GameState): Location | null` — finds best legal destination (foundations first)
-- `isGameWon(state: GameState): boolean` — all 4 foundations have 13 cards
-- `canAutoComplete(state: GameState): boolean` — all cards are face-up (stock and waste empty, all tableau cards face-up)
-- `getMovableCards(from: Location, state: GameState): Card[]` — returns the card(s) that would be moved (single card or stack from tableau)
+- `canMoveToTableau(card: Card, targetColumn: Card[]): boolean` — alternating color, descending rank. Kings on empty columns.
+- `canMoveToFoundation(card: Card, targetFoundation: Card[]): boolean` — same suit, ascending rank. Aces on empty.
+- `findAutoMoveTarget(card: Card, state: GameState): Location | null` — checks foundations first, then tableau columns. Returns first valid destination.
+- `isGameWon(state: GameState): boolean` — all 4 foundations have 13 cards.
+- `canAutoComplete(state: GameState): boolean` — stock empty, waste empty, all tableau cards face-up.
+- `getMovableCards(from: Location, state: GameState): Card[]` — returns the card(s) that would be moved. For tableau, returns the card at `position` plus all cards below it.
 
-### Step 4: Create game reducer
+### Step 5: Write rules tests
+
+Create `src/__tests__/game/rules.test.ts`:
+
+Tests to write (use helper functions to create test cards):
+
+**canMoveToTableau:**
+- Red 6 on black 7 → true
+- Black 6 on red 7 → true
+- Red 6 on red 7 → false (same color)
+- Red 6 on black 8 → false (not sequential)
+- Red 6 on black 6 → false (same rank)
+- King on empty column → true
+- Non-king on empty column → false
+- Any card on face-down card → false
+
+**canMoveToFoundation:**
+- Ace on empty foundation → true
+- Non-ace on empty foundation → false
+- 2 of spades on Ace of spades → true
+- 2 of hearts on Ace of spades → false (wrong suit)
+- 3 of spades on Ace of spades → false (not sequential)
+- King of spades on Queen of spades → true (completing a foundation)
+
+**findAutoMoveTarget:**
+- Ace with empty foundation → returns foundation location
+- Card that fits on foundation → returns foundation (priority over tableau)
+- Card that fits only on tableau → returns tableau location
+- Card with no valid move → returns null
+
+**isGameWon:**
+- All foundations with 13 cards → true
+- One foundation incomplete → false
+- All foundations empty → false
+
+**canAutoComplete:**
+- Empty stock, empty waste, all tableau face-up → true
+- Non-empty stock → false
+- Face-down card in tableau → false
+
+**getMovableCards:**
+- Single card from waste → returns [card]
+- Top card from tableau → returns [card]
+- Middle card from face-up stack in tableau → returns [card, ...cards below]
+- Face-down card → returns []
+
+### Step 6: Create game reducer
 
 Create `src/game/reducer.ts`:
 
 Implements `gameReducer(state: GameState, action: GameAction): GameState`:
 
-- **NEW_GAME:** Creates shuffled deck, deals 28 cards to tableau (1,2,3,4,5,6,7 with top face-up), remaining 24 to stock. Resets history. Preserves winCount.
-- **DRAW:** If stock has cards, move drawMode cards to waste (face-up). If stock empty, recycle waste back to stock (face-down). Pushes previous state to history.
-- **MOVE:** Validates move using rules, executes if valid, auto-flips newly exposed tableau cards. Pushes previous state to history. Checks for win.
-- **AUTO_MOVE:** Finds card by ID, determines its location, calls findAutoMoveTarget, executes MOVE if found.
-- **UNDO:** Pops most recent state from history. Returns it (with current history intact).
-- **AUTO_COMPLETE:** Repeatedly moves the lowest available card from tableau/waste to foundations until no more moves possible.
+- **NEW_GAME:** Creates shuffled deck, deals 28 cards to tableau (column i gets i+1 cards, top face-up), remaining 24 to stock. Resets history. Preserves winCount.
+- **DRAW:** If stock has cards, move drawMode cards to waste (face-up). If stock empty, recycle waste back to stock (face-down, reversed). Pushes previous state to history.
+- **MOVE:** Validates using rules. If valid: move cards, auto-flip newly exposed tableau cards, push history, check win. If invalid: return state unchanged.
+- **AUTO_MOVE:** Finds card by ID, determines its location, calls findAutoMoveTarget, dispatches internal MOVE if target found.
+- **UNDO:** Pops most recent state from history. Returns it with winCount preserved.
+- **AUTO_COMPLETE:** Repeatedly moves the lowest available card from tableau/waste to foundations until no more auto-moves possible.
 
-Helper: `createInitialState(drawMode: DrawMode): GameState` — called by NEW_GAME.
+Export helper: `createInitialState(drawMode: DrawMode): GameState`
 
-### Step 5: Commit and create PR
+### Step 7: Write reducer tests
+
+Create `src/__tests__/game/reducer.test.ts`:
+
+Tests to write (use `createInitialState` for setup, or build specific states for targeted tests):
+
+**NEW_GAME:**
+- Creates 7 tableau columns with correct card counts (1,2,3,4,5,6,7)
+- Top card of each tableau column is face-up
+- All other tableau cards are face-down
+- Stock has 24 cards
+- Waste is empty
+- Foundations are empty
+- Total cards = 52 (no cards lost)
+- History is empty
+- gameWon is false
+- Preserves winCount from previous state
+
+**DRAW (draw-1 mode):**
+- Moves 1 card from stock to waste, face-up
+- Stock decreases by 1
+- Waste increases by 1
+- Pushes state to history
+
+**DRAW (draw-3 mode):**
+- Moves 3 cards from stock to waste (or fewer if stock < 3)
+- Cards in waste are face-up
+
+**DRAW (empty stock):**
+- Recycles waste back to stock (reversed, face-down)
+- Waste becomes empty
+
+**MOVE (tableau to tableau, valid):**
+- Card moves from source column to target column
+- Source column is shorter, target is longer
+- Newly exposed card in source is flipped face-up
+- History grows by 1
+
+**MOVE (tableau to tableau, invalid):**
+- State is unchanged
+- History does not grow
+
+**MOVE (tableau to foundation, valid):**
+- Card moves from tableau to correct foundation
+- Foundation grows by 1
+
+**MOVE (waste to tableau):**
+- Top waste card moves to tableau column
+- Waste shrinks by 1
+
+**MOVE (waste to foundation):**
+- Top waste card moves to foundation
+
+**MOVE (stack of cards from tableau):**
+- Multiple face-up cards move together
+- Source loses the whole stack
+- Target gains the whole stack
+
+**AUTO_MOVE:**
+- Moves card to foundation if possible
+- Moves card to tableau if no foundation target
+- Does nothing if no valid target
+
+**UNDO:**
+- Returns to previous state
+- History shrinks by 1
+- Cannot undo past empty history (returns same state)
+
+**AUTO_COMPLETE:**
+- Moves all available cards to foundations when all cards are face-up
+- Sets gameWon to true when all cards reach foundations
+- Increments winCount on win
+
+**Win detection:**
+- gameWon becomes true when final card reaches foundation
+- winCount increments
+
+### Step 8: Run tests and verify
+
+Run: `pnpm test -- --coverage`
+Expected: All tests pass. High coverage on `src/game/` files (aim for >95% on rules.ts, reducer.ts, deck.ts).
+
+### Step 9: Commit and create PR
 
 ```bash
 git checkout main && git pull
 git checkout -b ridermw/pr2-game-engine
-git add src/game/
-git commit -m "Add Klondike game engine with types, rules, and reducer"
+git add src/game/ src/__tests__/game/
+git commit -m "Add Klondike game engine with comprehensive tests"
 ```
 
-Create PR to `main` with description covering the engine architecture.
+Create PR to `main`. CI must pass.
 
 ---
 
 ## PR 3: Board Layout and Card Rendering
 
-**Goal:** Render the game board with all card piles and a playable dealt game (static — no drag/drop yet, just visual).
+**Goal:** Render the game board with all card piles and a dealt game. Visual rendering with click-to-draw from stock and button actions (new game, undo).
 
 **Branch:** `ridermw/pr3-board-layout`
 
 **Files:**
-- Create: `src/components/Card.tsx` — single card component with front/back faces
-- Create: `src/components/Pile.tsx` — renders a stack of cards (handles overlap for tableau)
-- Create: `src/components/Board.tsx` — full game board layout
-- Create: `src/components/GameProvider.tsx` — React context wrapping useReducer
-- Modify: `src/app/page.tsx` — render Board
-- Modify: `src/app/globals.css` — add card styles and CSS custom properties
+- Create: `src/components/Card.tsx`
+- Create: `src/components/Pile.tsx`
+- Create: `src/components/Board.tsx`
+- Create: `src/components/GameProvider.tsx`
+- Create: `src/__tests__/components/Card.test.tsx`
+- Create: `src/__tests__/components/Pile.test.tsx`
+- Create: `src/__tests__/components/Board.test.tsx`
+- Create: `src/__tests__/components/GameProvider.test.tsx`
+- Modify: `src/app/page.tsx`
+- Modify: `src/app/globals.css`
 
 ### Step 1: Create GameProvider
 
 Create `src/components/GameProvider.tsx`:
 
-React context that:
-- Wraps `useReducer(gameReducer, initialState)` where initial state is a new game with drawMode 1
-- Exposes `state` and `dispatch` via context
+- Wraps `useReducer(gameReducer, createInitialState(1))`
+- React context exposes `state` and `dispatch`
 - Provides `useGame()` hook
 
-### Step 2: Create Card component
+### Step 2: Write GameProvider tests
+
+Create `src/__tests__/components/GameProvider.test.tsx`:
+
+- Provides initial game state to children
+- dispatch triggers state changes (e.g., DRAW)
+- useGame() throws when used outside provider
+
+### Step 3: Create Card component
 
 Create `src/components/Card.tsx`:
 
-A card element ~70px wide by ~100px tall (scaled via CSS). Two faces:
-- **Front:** rank in top-left and bottom-right corners, suit symbol, colored red or black
-- **Back:** themed pattern (use a default green/gold pattern for now, theming comes in PR 6)
-- CSS 3D transform: `rotateY(180deg)` toggles face. `transform-style: preserve-3d`, `backface-visibility: hidden` on each face
-- Card has `data-card-id` attribute for drag tracking
-- Accepts `onClick` and `onDoubleClick` props
-- Accepts `style` prop for positioning (absolute positioning within piles)
+- ~70px wide x ~100px tall (uses CSS custom properties)
+- Front face: rank top-left + bottom-right, suit symbol center, red/black coloring
+- Back face: default green/gold pattern
+- CSS 3D transform for face-up/face-down
+- `data-card-id` attribute
+- `onClick`, `onDoubleClick`, `style`, `className` props
 
-### Step 3: Create Pile component
+### Step 4: Write Card tests
+
+Create `src/__tests__/components/Card.test.tsx`:
+
+- Renders face-up card showing rank and suit
+- Renders face-down card showing back pattern
+- Applies correct color class for red suits
+- Applies correct color class for black suits
+- Calls onClick when clicked
+- Calls onDoubleClick when double-clicked
+- Sets data-card-id attribute
+- Renders all 13 ranks correctly (A, 2-10, J, Q, K)
+
+### Step 5: Create Pile component
 
 Create `src/components/Pile.tsx`:
 
-Renders a stack of Card components:
-- **Stock:** shows top card face-down, or empty placeholder. Click draws.
-- **Waste:** shows top card(s) face-up (draw-3 shows top 3 fanned right).
-- **Foundation:** shows top card or empty placeholder with suit symbol.
-- **Tableau:** cards overlap vertically. Face-down cards offset ~15px, face-up offset ~25px. Uses absolute positioning.
+- **Stock type:** single card face-down, or empty placeholder with recycle icon. Click handler for drawing.
+- **Waste type:** shows top card(s) face-up. Draw-3 mode fans top 3 cards.
+- **Foundation type:** shows top card or empty placeholder with suit symbol.
+- **Tableau type:** vertical fan with overlap. Face-down: 15px offset. Face-up: 25px offset. Absolute positioning within relative container.
 
-### Step 4: Create Board component
+### Step 6: Write Pile tests
+
+Create `src/__tests__/components/Pile.test.tsx`:
+
+- Stock pile: renders face-down card when stock is not empty
+- Stock pile: renders empty placeholder when stock is empty
+- Stock pile: calls onDraw when clicked
+- Waste pile: renders top card face-up
+- Foundation pile: renders top card when not empty
+- Foundation pile: shows suit symbol placeholder when empty
+- Tableau pile: renders correct number of cards
+- Tableau pile: applies face-up/face-down correctly based on card.faceUp
+
+### Step 7: Create Board component
 
 Create `src/components/Board.tsx`:
 
-Full-viewport layout:
-- CSS Grid or Flexbox layout
-- **Top row:** Stock pile, Waste pile, spacer, 4 Foundation piles
-- **Main area:** 7 Tableau columns evenly spaced
-- **Bottom bar:** New Game button, Undo button (no Settings yet — that's PR 6)
-- Buttons dispatch NEW_GAME and UNDO actions
-- Initial game mode selector: before first game, show draw-1 vs draw-3 choice
+- Full viewport layout
+- Top row: Stock, Waste, spacer, 4 Foundations
+- Main area: 7 Tableau columns
+- Bottom bar: New Game button, Undo button
+- Stock click dispatches DRAW
+- New Game shows draw mode selector, then dispatches NEW_GAME
+- Undo dispatches UNDO
 
-### Step 5: Wire up page.tsx
+### Step 8: Write Board tests
+
+Create `src/__tests__/components/Board.test.tsx`:
+
+- Renders 7 tableau columns
+- Renders 4 foundation placeholders
+- Renders stock pile
+- Renders waste pile
+- New Game button triggers new game flow
+- Undo button dispatches UNDO
+- Stock click dispatches DRAW
+
+### Step 9: Wire up page.tsx
 
 Replace `src/app/page.tsx`:
 
@@ -362,345 +658,369 @@ export default function Home() {
 }
 ```
 
-### Step 6: Add base card CSS
+### Step 10: Add base CSS
 
 Add to `src/app/globals.css`:
-- Card dimensions as CSS vars (`--card-width: 70px`, `--card-height: 100px`)
-- 3D perspective on board container (`perspective: 1000px`)
+- Card dimension CSS vars
+- 3D perspective on board
 - Card face/back base styles
-- Empty pile placeholder styles (dashed border, subtle)
-- Default background: dark green (`#1a472a`)
+- Empty pile placeholder styles
+- Default board background: dark green (`#1a472a`)
 
-### Step 7: Verify visual rendering
+### Step 11: Run tests and verify
 
-Run: `pnpm dev`
-Verify: Board shows dealt game with 7 tableau columns, stock, waste, foundations. Cards render with correct ranks/suits. Click stock to draw. Click "New Game" to redeal.
+Run: `pnpm test -- --coverage`
+Expected: All tests pass. Build succeeds.
 
-### Step 8: Commit and create PR
+Run: `pnpm dev` — visual verification: board renders with dealt game, stock click draws, new game works.
+
+### Step 12: Commit and create PR
 
 ```bash
 git checkout main && git pull
 git checkout -b ridermw/pr3-board-layout
-git add src/components/ src/app/page.tsx src/app/globals.css
-git commit -m "Add board layout with card rendering and game context"
+git add src/components/ src/__tests__/components/ src/app/page.tsx src/app/globals.css
+git commit -m "Add board layout with card rendering, game context, and tests"
 ```
 
 ---
 
 ## PR 4: Card Interaction — Drag-and-Drop + Double-Click
 
-**Goal:** Make the game fully playable with drag-and-drop card movement and double-click auto-move.
+**Goal:** Make the game fully playable with drag-and-drop and double-click auto-move.
 
 **Branch:** `ridermw/pr4-card-interaction`
 
 **Files:**
-- Create: `src/hooks/useDragAndDrop.ts` — pointer event handling for drag-and-drop
-- Modify: `src/components/Card.tsx` — attach drag handlers
-- Modify: `src/components/Pile.tsx` — drop zone logic
-- Modify: `src/components/Board.tsx` — drag overlay layer
+- Create: `src/hooks/useDragAndDrop.ts`
+- Create: `src/__tests__/hooks/useDragAndDrop.test.ts`
+- Modify: `src/components/Card.tsx`
+- Modify: `src/components/Pile.tsx`
+- Modify: `src/components/Board.tsx`
+- Modify: `src/__tests__/components/Board.test.tsx`
 
 ### Step 1: Create useDragAndDrop hook
 
 Create `src/hooks/useDragAndDrop.ts`:
 
-Custom hook that manages:
-- **Drag state:** `{ isDragging, dragCards, dragOrigin, position }` or null
-- **pointerdown** on a card: records origin location, starts tracking pointer position
-- **pointermove:** updates position of dragged card overlay (uses `requestAnimationFrame` for smooth tracking)
-- **pointerup:** checks if pointer is over a valid drop zone. If valid, dispatches MOVE action. If invalid, cancels (card snaps back).
-- Minimum drag distance threshold (5px) to distinguish click from drag
-- Captures pointer via `setPointerCapture` for reliable tracking
-- For tableau, allows grabbing a stack (the clicked card plus all cards below it)
+- Tracks drag state: `{ isDragging, dragCards, dragOrigin, position }` or null
+- `onPointerDown`: records origin, starts tracking (with 5px minimum distance threshold)
+- `onPointerMove`: updates dragged card position via `requestAnimationFrame`
+- `onPointerUp`: resolves drop — checks `document.elementsFromPoint()` for `[data-drop-zone]`, dispatches MOVE if valid
+- `setPointerCapture` for reliable cross-element tracking
+- Supports grabbing stacks from tableau (clicked card + all below)
 
-### Step 2: Add drop zone detection
+### Step 2: Write useDragAndDrop tests
 
-In Pile components, add `data-drop-zone` attributes with pile type and index. On pointerup, use `document.elementsFromPoint()` to find the drop target under the cursor.
+Create `src/__tests__/hooks/useDragAndDrop.test.ts`:
 
-### Step 3: Add double-click auto-move
+Use `renderHook` + `fireEvent`:
+- Returns isDragging=false initially
+- Starts drag on pointerdown + pointermove beyond threshold
+- Does not start drag for small movements (< 5px)
+- Updates position during pointermove
+- Resets drag state on pointerup
+- Includes dragOrigin location info
+- Includes correct card(s) in dragCards
 
-On Card's `onDoubleClick`, dispatch `AUTO_MOVE` action with the card's ID. The reducer finds the best destination automatically.
+### Step 3: Add double-click to Card
 
-### Step 4: Add drag overlay to Board
+In Card component, `onDoubleClick` dispatches `AUTO_MOVE` with card ID.
 
-In Board, render a floating layer for the dragged card(s):
-- Position: fixed, follows pointer
-- Scale: 1.05x with elevated shadow
-- z-index above everything
-- Contains the Card component(s) being dragged
+### Step 4: Add drop zones to Pile
 
-### Step 5: Add visual feedback for valid drop zones
+Add `data-drop-zone="${type}-${index}"` to each pile container element.
 
-When dragging, highlight valid drop zones:
-- Calculate which piles the dragged card(s) can legally go to
-- Add a subtle glow/border highlight to those piles
-- Remove highlight when drag ends
+### Step 5: Add drag overlay to Board
 
-### Step 6: Handle stock pile click
+In Board, render a floating layer when drag is active:
+- Fixed position following pointer
+- Scale 1.05x, elevated shadow
+- z-index 1000
+- Valid drop zones get highlighted border/glow
 
-Click on stock pile dispatches DRAW action. Click on empty stock recycles waste.
+### Step 6: Update Board tests
 
-### Step 7: Verify full playability
+Add to Board tests:
+- Double-clicking a face-up card triggers AUTO_MOVE
+- Valid drop zones show visual feedback during drag (via CSS class)
 
-Run: `pnpm dev`
-Test:
-- Drag cards between tableau columns (alternating colors, descending rank)
-- Drag Aces to foundations, build up by suit
-- Double-click to auto-move cards
-- Draw from stock (draw-1 and draw-3)
-- Undo moves
-- Play to completion
+### Step 7: Run tests and verify
+
+Run: `pnpm test -- --coverage`
+Expected: All tests pass.
+
+Run: `pnpm dev` — manually verify: drag cards between piles, double-click auto-moves, draw from stock, undo.
 
 ### Step 8: Commit and create PR
 
 ```bash
 git checkout main && git pull
 git checkout -b ridermw/pr4-card-interaction
-git add src/hooks/ src/components/
-git commit -m "Add drag-and-drop and double-click card interaction"
+git add src/hooks/ src/__tests__/hooks/ src/components/ src/__tests__/components/
+git commit -m "Add drag-and-drop and double-click interaction with tests"
 ```
 
 ---
 
 ## PR 5: Card Animations
 
-**Goal:** Add smooth animations for dealing, flipping, moving, and invalid moves.
+**Goal:** Smooth animations for dealing, card flipping, movement, and invalid move feedback.
 
 **Branch:** `ridermw/pr5-animations`
 
 **Files:**
-- Create: `src/hooks/useAnimations.ts` — animation state management
-- Modify: `src/components/Card.tsx` — CSS transitions for flip
-- Modify: `src/components/Board.tsx` — deal animation orchestration
-- Modify: `src/app/globals.css` — keyframes and transition classes
+- Create: `src/hooks/useAnimationState.ts`
+- Create: `src/__tests__/hooks/useAnimationState.test.ts`
+- Modify: `src/components/Card.tsx`
+- Modify: `src/components/Board.tsx`
+- Modify: `src/app/globals.css`
 
-### Step 1: Add CSS keyframes and transitions
+### Step 1: Add CSS keyframes
 
 Add to `src/app/globals.css`:
-- `@keyframes shake` — left-right shake for invalid moves (100ms, 3 cycles)
-- `@keyframes deal-fly` — card flies from stock position to target (300ms ease-out)
-- Card flip transition: `transition: transform 300ms ease-in-out` on the card container
-- Card move transition: `transition: top 200ms ease-out, left 200ms ease-out`
+- `@keyframes card-shake` — left-right shake for invalid moves
+- `@keyframes card-deal` — translate from stock position to target
+- Card flip: `transition: transform 300ms ease-in-out` on card container
+- Card move: `transition: top 200ms ease-out, left 200ms ease-out`
 
-### Step 2: Card flip animation
+### Step 2: Create useAnimationState hook
 
-In Card component:
-- When `faceUp` changes, trigger 3D Y-axis rotation via CSS class toggle
-- Card container has `transform-style: preserve-3d`
-- Front face: `rotateY(0deg)`, Back face: `rotateY(180deg)`
-- When face-down: container has `rotateY(180deg)`
-- The CSS transition handles the smooth rotation
+Create `src/hooks/useAnimationState.ts`:
 
-### Step 3: Deal animation
+Tracks:
+- `isDealing: boolean` — true during deal animation, blocks interaction
+- `shakingCardId: string | null` — card currently shaking
+- `dealCard(index, targetPosition)` — triggers staggered deal animation
+- `shakeCard(cardId)` — triggers shake, auto-clears after animation
 
-When a new game starts:
-- Cards start stacked at the stock position
-- Animate each card flying to its tableau position with staggered timing (~50ms between cards)
-- Use `useAnimations` hook to track deal-in-progress state (block interaction during deal)
-- Total deal time: ~28 cards * 50ms = ~1.4 seconds
+### Step 3: Write useAnimationState tests
 
-### Step 4: Move animation
+- isDealing starts as false
+- dealCard sets isDealing to true
+- isDealing resets to false after deal completes
+- shakeCard sets shakingCardId
+- shakingCardId auto-clears after timeout
 
-When a card moves between piles:
-- Briefly animate from old position to new position using CSS transitions
-- Card smoothly slides to new location (~200ms)
+### Step 4: Card flip animation
 
-### Step 5: Invalid move shake
+In Card: CSS class toggle when faceUp changes. 3D rotateY transition.
 
-When a drag-and-drop lands on an invalid target:
-- Card snaps back to original position
-- Apply shake animation class, remove after animation ends
+### Step 5: Deal animation in Board
 
-### Step 6: Auto-complete animation
+On NEW_GAME: set isDealing=true, stagger card appearances (~50ms each), set isDealing=false when done. Disable interaction during deal.
 
-When auto-complete triggers:
-- Cards fly to foundations one at a time with ~80ms stagger
-- Each card arcs upward slightly during flight
+### Step 6: Invalid move shake
 
-### Step 7: Commit and create PR
+On failed drop: apply shake class to card, remove after animation end.
+
+### Step 7: Auto-complete animation
+
+When AUTO_COMPLETE fires: stagger card movements to foundations (~80ms each).
+
+### Step 8: Run tests and verify
+
+Run: `pnpm test -- --coverage`
+Run: `pnpm dev` — visual verification of animations.
+
+### Step 9: Commit and create PR
 
 ```bash
 git checkout main && git pull
 git checkout -b ridermw/pr5-animations
-git add src/hooks/ src/components/ src/app/globals.css
-git commit -m "Add deal, flip, move, and shake animations"
+git add src/hooks/ src/__tests__/hooks/ src/components/ src/app/globals.css
+git commit -m "Add deal, flip, move, and shake animations with tests"
 ```
 
 ---
 
-## PR 6: Theming System — 4 Themes + Light/Dark Mode
+## PR 6: Theming — 4 Themes + Light/Dark Mode + Settings Panel
 
-**Goal:** Implement the 4 visual themes with light/dark mode toggle, theme selector UI, and settings panel.
+**Goal:** 4 visual themes, light/dark toggle, card back patterns, and a settings drawer.
 
 **Branch:** `ridermw/pr6-theming`
 
 **Files:**
-- Create: `src/components/ThemeProvider.tsx` — context for theme + dark mode
-- Create: `src/components/SettingsPanel.tsx` — slide-out settings drawer
-- Create: `src/styles/themes.ts` — theme definitions
-- Modify: `src/app/globals.css` — CSS custom properties for all themes
-- Modify: `src/app/layout.tsx` — wrap with ThemeProvider
-- Modify: `src/components/Board.tsx` — add settings button, apply theme classes
-- Modify: `src/components/Card.tsx` — theme-aware card back designs
+- Create: `src/styles/themes.ts`
+- Create: `src/components/ThemeProvider.tsx`
+- Create: `src/components/SettingsPanel.tsx`
+- Create: `src/__tests__/styles/themes.test.ts`
+- Create: `src/__tests__/components/ThemeProvider.test.tsx`
+- Create: `src/__tests__/components/SettingsPanel.test.tsx`
+- Modify: `src/app/globals.css`
+- Modify: `src/app/layout.tsx`
+- Modify: `src/components/Board.tsx`
+- Modify: `src/components/Card.tsx`
 
-### Step 1: Define theme CSS custom properties
+### Step 1: Define themes
 
-Create theme definitions in `src/styles/themes.ts` and corresponding CSS in `globals.css`.
+Create `src/styles/themes.ts`:
 
-Each theme defines:
-- `--bg-primary` — page background
-- `--bg-surface` — board surface
-- `--bg-card-front` — card face background
-- `--bg-card-back` — card back base color
-- `--bg-card-back-pattern` — CSS gradient for card back pattern
-- `--color-card-red` — red suit color
-- `--color-card-black` — black suit color
-- `--color-accent` — buttons, highlights
-- `--color-text` — general text
-- `--shadow-card` — card box shadow
-- `--border-card` — card border
-- `--border-empty-pile` — empty pile placeholder border
-- `--radius-card` — card border radius
+Export a `THEMES` record mapping theme names to objects of CSS custom properties. 4 themes: `casino`, `minimal`, `cozy`, `playful`. Each theme has light and dark variants.
 
-Light/dark mode modifies: `--bg-primary`, `--bg-surface`, `--shadow-card`, `--color-text`, brightness adjustments.
+~15 properties per theme variant (see design doc for color specs).
 
-### Step 2: Create ThemeProvider
+### Step 2: Write themes tests
 
-Create `src/components/ThemeProvider.tsx`:
+Create `src/__tests__/styles/themes.test.ts`:
 
-- Stores active theme name + dark mode boolean in state
-- Reads from / writes to localStorage on change
-- Applies CSS custom properties to document root
-- 300ms CSS transition on `--bg-*` and `--color-*` properties for smooth theme switching
-- Exposes `useTheme()` hook: `{ theme, setTheme, isDark, toggleDark }`
+- THEMES has exactly 4 entries
+- Each theme has all required CSS property keys
+- Each theme has both light and dark variants
+- No duplicate property values across unrelated properties (sanity check)
 
-### Step 3: Create card back patterns
+### Step 3: Create ThemeProvider
 
-In Card component, render themed card backs using CSS-only patterns:
+- Stores `themeName` and `isDark` in state
+- Reads initial values from localStorage (with fallback to `casino` + system preference for dark)
+- Applies CSS custom properties to `document.documentElement.style`
+- Persists changes to localStorage
+- 300ms transition class on root element
+- Exposes `useTheme()` hook
 
-- **Classic Casino:** Repeating diamond pattern in red/gold using `linear-gradient` + `repeating-linear-gradient`
-- **Modern Minimal:** Geometric grid pattern, muted blue on darker blue
-- **Cozy Warm:** Subtle floral-inspired swirl using `radial-gradient` layers
-- **Playful:** Rainbow diagonal stripes using `repeating-linear-gradient`
+### Step 4: Write ThemeProvider tests
 
-Each pattern is a CSS class that reads from theme custom properties.
+- Defaults to casino theme
+- Applies CSS properties to document root
+- setTheme changes active theme and persists
+- toggleDark switches dark mode
+- Reads persisted values from localStorage on mount
 
-### Step 4: Create SettingsPanel
+### Step 5: Create themed card backs
 
-Create `src/components/SettingsPanel.tsx`:
+In Card component, render CSS-only patterns per theme:
+- Casino: red/gold diamond pattern
+- Minimal: geometric blue grid
+- Cozy: warm radial gradient swirls
+- Playful: rainbow diagonal stripes
 
-Slide-out drawer from right side:
-- **Theme selector:** 4 small thumbnail previews (miniature card + background), click to select. Active theme highlighted.
-- **Light/Dark toggle:** Switch component
-- **Draw mode:** Radio buttons for 1 or 3. Disabled during active game — shows note "starts on next new game"
-- Close button (X)
-- Backdrop click to close
-- Slide-in animation from right
+### Step 6: Create SettingsPanel
 
-### Step 5: Wire up Board
+Slide-out drawer from right:
+- Theme thumbnails (4 miniature previews)
+- Light/Dark toggle
+- Draw mode selector (1 or 3, note: "applies on next new game")
+- Close button + backdrop click to close
 
-Add settings gear icon button to bottom bar. Opens SettingsPanel. Apply theme class to board container.
+### Step 7: Write SettingsPanel tests
 
-### Step 6: Wrap layout with ThemeProvider
+- Renders all 4 theme options
+- Clicking a theme calls setTheme
+- Dark mode toggle works
+- Draw mode radio buttons update state
+- Close button calls onClose
+- Not rendered when closed
 
-Modify `src/app/layout.tsx` to wrap children with `<ThemeProvider>`.
+### Step 8: Wire into Board and layout
 
-### Step 7: Verify all 4 themes + dark mode
+- Add settings gear button to Board bottom bar
+- Wrap layout.tsx children with ThemeProvider
 
-Run: `pnpm dev`
-Test: Switch between all 4 themes in light and dark mode. Verify card backs change, backgrounds change, transitions are smooth.
+### Step 9: Run tests and verify
 
-### Step 8: Commit and create PR
+Run: `pnpm test -- --coverage`
+Run: `pnpm dev` — switch all themes in both modes.
+
+### Step 10: Commit and create PR
 
 ```bash
 git checkout main && git pull
 git checkout -b ridermw/pr6-theming
-git add src/components/ src/styles/ src/app/globals.css src/app/layout.tsx
-git commit -m "Add 4-theme system with light/dark mode and settings panel"
+git add src/styles/ src/components/ src/__tests__/ src/app/globals.css src/app/layout.tsx
+git commit -m "Add 4-theme system with light/dark mode, settings panel, and tests"
 ```
 
 ---
 
 ## PR 7: Sound Effects
 
-**Goal:** Add synthesized sound effects for all game interactions using Web Audio API.
+**Goal:** Synthesized sound effects for all game interactions via Web Audio API.
 
 **Branch:** `ridermw/pr7-sound-effects`
 
 **Files:**
-- Create: `src/audio/SoundEngine.ts` — Web Audio API sound synthesis
-- Create: `src/components/SoundProvider.tsx` — context for sound settings
-- Modify: `src/components/SettingsPanel.tsx` — add volume slider and mute toggle
-- Modify: `src/components/Board.tsx` — trigger sounds on game actions
-- Modify: `src/components/GameProvider.tsx` — expose action callbacks for sound triggers
+- Create: `src/audio/SoundEngine.ts`
+- Create: `src/components/SoundProvider.tsx`
+- Create: `src/__tests__/audio/SoundEngine.test.ts`
+- Create: `src/__tests__/components/SoundProvider.test.tsx`
+- Modify: `src/components/SettingsPanel.tsx`
+- Modify: `src/components/Board.tsx` (or `src/components/GameProvider.tsx`)
 
 ### Step 1: Create SoundEngine
 
 Create `src/audio/SoundEngine.ts`:
 
-Class that manages an `AudioContext` and provides methods for each sound:
+Class wrapping `AudioContext`:
+- `shuffle()`: 10 rapid noise bursts over 500ms
+- `deal(index)`: thwip sound, pitch increases with index
+- `cardPlace()`: low-freq pulse, 50ms
+- `cardFlip()`: high-freq noise burst, 30ms
+- `draw()`: noise sweep low→high, 200ms
+- `invalidMove()`: sawtooth 80Hz, 200ms decay
+- `win()`: C-E-G-C ascending sine tones
 
-- **`shuffle()`:** 10 rapid noise bursts (white noise filtered through bandpass) over 500ms, simulating card riffle
-- **`deal(index: number)`:** Short "thwip" — quick noise burst through highpass filter. Pitch increases slightly with index.
-- **`cardPlace()`:** Low-frequency oscillator pulse (~100Hz, 50ms) — soft thud
-- **`cardFlip()`:** Short white noise burst through highpass filter (~3000Hz, 30ms) — paper snap
-- **`draw()`:** Filtered noise sweep from low to high (~200ms) — swish
-- **`invalidMove()`:** Low sawtooth oscillator (~80Hz) with quick decay (~200ms) — buzz
-- **`win()`:** Ascending sequence of sine tones (C-E-G-C, each ~200ms) — chime melody
+All methods respect `volume` and `muted` properties. Lazy-init AudioContext on first call.
 
-Each method:
-- Creates oscillators/noise nodes on the fly (cheap, no pre-allocation needed)
-- Respects current volume setting
-- No-ops if muted
-- Lazy-initializes AudioContext on first user interaction (browser autoplay policy)
+### Step 2: Write SoundEngine tests
 
-### Step 2: Create SoundProvider
+Create `src/__tests__/audio/SoundEngine.test.ts`:
 
-Create `src/components/SoundProvider.tsx`:
+Mock `AudioContext`, `OscillatorNode`, `GainNode` using vitest mocks:
+- Constructor does not create AudioContext (lazy init)
+- First sound call creates AudioContext
+- shuffle() creates expected oscillator/noise nodes
+- Muted mode: methods return without creating nodes
+- Volume of 0: gain is set to 0
+- Each method creates and starts the expected node types
 
-- Creates single SoundEngine instance
-- Stores volume (0-1) and muted boolean in state, persisted to localStorage
-- Exposes `useSound()` hook: `{ play, volume, setVolume, muted, toggleMute }`
-- `play(soundName)` delegates to SoundEngine methods
+### Step 3: Create SoundProvider
 
-### Step 3: Add volume/mute controls to SettingsPanel
+- Single SoundEngine instance via useRef
+- State: volume (0-1), muted boolean
+- Persisted to localStorage
+- `useSound()` hook: `{ play, volume, setVolume, muted, toggleMute }`
 
-Add to SettingsPanel:
-- Volume slider (range input, 0-100)
-- Mute toggle button (speaker icon / muted speaker icon)
+### Step 4: Write SoundProvider tests
 
-### Step 4: Trigger sounds from game actions
+- Provides play function to children
+- play('shuffle') calls SoundEngine.shuffle()
+- Mute toggle updates state and persists
+- Volume change updates state and persists
 
-In GameProvider or Board, intercept dispatched actions and play corresponding sounds:
-- NEW_GAME → `shuffle()` then `deal()` in sequence
-- DRAW → `draw()`
-- MOVE (valid) → `cardPlace()`
-- MOVE (to foundation) → `cardPlace()` (slightly different?)
-- AUTO_MOVE → `cardPlace()`
-- Card flip → `cardFlip()`
-- Invalid drop → `invalidMove()`
-- Game won → `win()`
+### Step 5: Add volume/mute to SettingsPanel
 
-Use a wrapper around dispatch that plays sounds before/after the action.
+- Volume slider (0-100 range input)
+- Mute toggle (speaker icon)
 
-### Step 5: Verify all sounds
+### Step 6: Trigger sounds from game actions
 
-Run: `pnpm dev`
-Test: Each interaction produces appropriate sound. Volume slider works. Mute silences all sounds.
+Wrap dispatch in GameProvider (or Board) to intercept actions:
+- NEW_GAME → shuffle + deal sounds
+- DRAW → draw sound
+- MOVE (valid) → cardPlace
+- Card flip → cardFlip
+- Invalid drop → invalidMove
+- Game won → win
 
-### Step 6: Commit and create PR
+### Step 7: Run tests and verify
+
+Run: `pnpm test -- --coverage`
+Run: `pnpm dev` — play with sound on, verify each interaction has a sound.
+
+### Step 8: Commit and create PR
 
 ```bash
 git checkout main && git pull
 git checkout -b ridermw/pr7-sound-effects
-git add src/audio/ src/components/
-git commit -m "Add synthesized sound effects via Web Audio API"
+git add src/audio/ src/__tests__/audio/ src/components/ src/__tests__/components/
+git commit -m "Add synthesized sound effects via Web Audio API with tests"
 ```
 
 ---
 
-## PR 8: Win Detection and Celebrations
+## PR 8: Win Celebrations
 
-**Goal:** Detect wins, trigger auto-complete when possible, and display rotating celebration animations.
+**Goal:** 3 rotating celebration animations, 10 seconds each, triggered on game win.
 
 **Branch:** `ridermw/pr8-win-celebrations`
 
@@ -709,140 +1029,125 @@ git commit -m "Add synthesized sound effects via Web Audio API"
 - Create: `src/components/celebrations/Fireworks.tsx`
 - Create: `src/components/celebrations/CardFlyAway.tsx`
 - Create: `src/components/celebrations/CelebrationOverlay.tsx`
-- Modify: `src/components/Board.tsx` — win detection, auto-complete prompt, celebration overlay
-- Modify: `src/game/reducer.ts` — increment winCount on win
+- Create: `src/__tests__/components/celebrations/CelebrationOverlay.test.tsx`
+- Modify: `src/components/Board.tsx`
 
-### Step 1: Create CascadingCards celebration
+### Step 1: Create CascadingCards
 
-Create `src/components/celebrations/CascadingCards.tsx`:
+Canvas-based: 52 card rectangles launched from foundations with gravity physics, bouncing off edges, colorful trails. 10 seconds. Uses `requestAnimationFrame`.
 
-Canvas-based animation (this is the one place canvas makes sense — particle effects):
-- 52 card-shaped rectangles launch from foundation positions
-- Simple physics: gravity pulls down, bounce off screen edges with energy loss
-- Each card leaves a fading colorful trail
-- Cards have random initial velocity (upward and outward)
-- Runs for 10 seconds
-- Uses `requestAnimationFrame` loop
+### Step 2: Create Fireworks
 
-### Step 2: Create Fireworks celebration
+Canvas-based: particle bursts from random positions, multi-wave, theme-colored. "You Win!" text with glow. 10 seconds.
 
-Create `src/components/celebrations/Fireworks.tsx`:
+### Step 3: Create CardFlyAway
 
-Canvas-based:
-- Multiple bursts of particles from random positions
-- Particles spread outward, fade, drift down with gravity
-- Colors match current theme accent
-- "You Win!" text in center with pulsing glow effect (CSS)
-- 3-4 waves of fireworks over 10 seconds
-
-### Step 3: Create CardFlyAway celebration
-
-Create `src/components/celebrations/CardFlyAway.tsx`:
-
-DOM-based (CSS animations):
-- All 52 cards are positioned in center, then spiral outward
-- Each card rotates and scales down while moving outward
-- Staggered start times for vortex effect
-- Cards fade out as they reach screen edge
-- "Congratulations" text appears in center after cards clear
-- CSS keyframes with `animation-delay` for stagger
+DOM-based CSS animations: 52 cards spiral outward from center in vortex, fade out. "Congratulations" text after cards clear. 10 seconds.
 
 ### Step 4: Create CelebrationOverlay
 
-Create `src/components/celebrations/CelebrationOverlay.tsx`:
-
-Wrapper component:
-- Full-screen overlay (fixed, z-index above everything)
-- Receives `celebrationType: 0 | 1 | 2` (cycles based on `winCount % 3`)
-- Renders the appropriate celebration component
-- Shows "Play Again" button after celebration ends (10 seconds)
+Wrapper:
+- Full-screen fixed overlay, z-index 9999
+- Selects celebration based on `winCount % 3`
+- Shows "Play Again" button after 10 seconds
 - "Play Again" dispatches NEW_GAME
 
-### Step 5: Wire into Board
+### Step 5: Write CelebrationOverlay tests
 
-In Board:
-- When `state.gameWon` becomes true, show CelebrationOverlay
-- Before win, when `canAutoComplete(state)` is true, show "Auto Complete" button or automatically trigger auto-complete
-- Increment `winCount` in reducer on win
+- Renders CascadingCards when winCount % 3 === 0
+- Renders Fireworks when winCount % 3 === 1
+- Renders CardFlyAway when winCount % 3 === 2
+- Shows "Play Again" button after timeout
+- Play Again click dispatches NEW_GAME
+- Overlay renders when gameWon is true
+- Overlay does not render when gameWon is false
 
-### Step 6: Verify all 3 celebrations
+### Step 6: Wire into Board
 
-Run: `pnpm dev`
-Test: Win a game (or temporarily make winning easy). Verify each celebration type renders correctly for 10 seconds. Verify rotation across wins.
+- When `state.gameWon` → show CelebrationOverlay
+- When `canAutoComplete(state)` → show "Auto Complete" button or auto-trigger
 
-### Step 7: Commit and create PR
+### Step 7: Run tests and verify
+
+Run: `pnpm test -- --coverage`
+Run: `pnpm dev` — trigger a win (can temporarily rig a winning deal in tests/dev).
+
+### Step 8: Commit and create PR
 
 ```bash
 git checkout main && git pull
 git checkout -b ridermw/pr8-win-celebrations
-git add src/components/celebrations/ src/components/Board.tsx src/game/reducer.ts
-git commit -m "Add win detection with 3 rotating celebration animations"
+git add src/components/celebrations/ src/__tests__/components/celebrations/ src/components/Board.tsx
+git commit -m "Add 3 rotating win celebrations with tests"
 ```
 
 ---
 
-## PR 9: Responsive Polish and Final Touches
+## PR 9: Responsive Design + Accessibility + Polish
 
-**Goal:** Responsive design, mobile support, keyboard accessibility, and final polish.
+**Goal:** Mobile-friendly layout, keyboard accessibility, final visual polish.
 
 **Branch:** `ridermw/pr9-responsive-polish`
 
 **Files:**
-- Modify: `src/app/globals.css` — responsive breakpoints, card sizing
-- Modify: `src/components/Board.tsx` — responsive layout adjustments
-- Modify: `src/components/Card.tsx` — scalable card sizes
-- Modify: `src/components/Pile.tsx` — adjusted overlap for mobile
-- Modify: `src/components/SettingsPanel.tsx` — mobile-friendly drawer
+- Modify: `src/app/globals.css` — responsive breakpoints
+- Modify: `src/components/Board.tsx` — responsive layout
+- Modify: `src/components/Card.tsx` — scalable sizing
+- Modify: `src/components/Pile.tsx` — mobile overlap adjustments
+- Modify: `src/components/SettingsPanel.tsx` — mobile drawer
+- Create: `src/__tests__/components/Board.responsive.test.tsx`
 
 ### Step 1: Responsive card sizing
 
-Add responsive CSS custom properties:
+CSS custom properties at breakpoints:
 - Desktop (>1024px): `--card-width: 80px`, `--card-height: 112px`
 - Tablet (768-1024px): `--card-width: 65px`, `--card-height: 91px`
 - Mobile (<768px): `--card-width: 48px`, `--card-height: 67px`
 
-All card dimensions reference these variables.
-
 ### Step 2: Responsive board layout
 
-Adjust Board layout at breakpoints:
-- Desktop: comfortable spacing between columns
-- Tablet: reduced gaps
-- Mobile: minimal gaps, tableau overlap tighter (face-down: 8px, face-up: 18px)
+Adjusted spacing, gaps, and overlap per breakpoint.
 
-### Step 3: Mobile touch improvements
+### Step 3: Mobile touch
 
-- Increase touch targets on mobile (buttons at least 44px)
-- Prevent scroll while dragging cards (`touch-action: none` on board)
-- Prevent text selection during drag
+- `touch-action: none` on board during drag
+- 44px minimum touch targets for buttons
+- No text selection during drag
 
 ### Step 4: Keyboard accessibility
 
-- Tab navigation between piles
-- Enter/Space to select a card, then arrow keys to choose destination, Enter to place
-- Escape to cancel selection
-- `aria-label` on cards ("Ace of Spades, face up")
-- `role="application"` on board
+- Tab through piles
+- Enter/Space to pick up card
+- Arrow keys to choose destination
+- Escape to cancel
+- `aria-label` on cards (e.g. "Ace of Spades, face up")
 
-### Step 5: Final visual polish
+### Step 5: Write responsive/accessibility tests
 
-- Smooth page load (prevent flash of unstyled content)
-- Loading state while game initializes
-- Subtle background texture/pattern on the board surface
-- Card hover effect (slight lift on desktop)
+Create `src/__tests__/components/Board.responsive.test.tsx`:
 
-### Step 6: Verify on multiple screen sizes
+- Cards have correct aria-labels
+- Buttons are keyboard-focusable
+- Board has appropriate role
 
-Run: `pnpm dev`
-Test at: 1440px, 1024px, 768px, 375px widths. Verify game is playable at all sizes.
+### Step 6: Final visual polish
 
-### Step 7: Commit and create PR
+- Card hover lift on desktop
+- Page load smoothness (no FOUC)
+- Board surface texture
+
+### Step 7: Run tests and verify
+
+Run: `pnpm test -- --coverage`
+Run: `pnpm dev` — test at 1440px, 1024px, 768px, 375px. Test keyboard navigation.
+
+### Step 8: Commit and create PR
 
 ```bash
 git checkout main && git pull
 git checkout -b ridermw/pr9-responsive-polish
 git add src/
-git commit -m "Add responsive design, mobile support, and accessibility"
+git commit -m "Add responsive design, accessibility, and visual polish with tests"
 ```
 
 ---
@@ -850,15 +1155,15 @@ git commit -m "Add responsive design, mobile support, and accessibility"
 ## PR Dependency Chain
 
 ```
-PR 1 (Deploy) → merged to main
-PR 2 (Engine) → branches from main after PR 1
-PR 3 (Board) → branches from main after PR 2
-PR 4 (Interaction) → branches from main after PR 3
-PR 5 (Animations) → branches from main after PR 4
-PR 6 (Theming) → branches from main after PR 5
-PR 7 (Sound) → branches from main after PR 6
-PR 8 (Celebrations) → branches from main after PR 7
-PR 9 (Polish) → branches from main after PR 8
+PR 1 (Deploy + Testing) → merged to main
+PR 2 (Engine + Tests) → branches from main after PR 1
+PR 3 (Board + Tests) → branches from main after PR 2
+PR 4 (Interaction + Tests) → branches from main after PR 3
+PR 5 (Animations + Tests) → branches from main after PR 4
+PR 6 (Theming + Tests) → branches from main after PR 5
+PR 7 (Sound + Tests) → branches from main after PR 6
+PR 8 (Celebrations + Tests) → branches from main after PR 7
+PR 9 (Polish + Tests) → branches from main after PR 8
 ```
 
-Each PR builds on the previous but is independently reviewable and deployable.
+Each PR includes comprehensive tests, passes CI (`build-and-test`), and is independently reviewable.
