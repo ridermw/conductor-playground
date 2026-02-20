@@ -23,12 +23,12 @@ A browser-based Klondike solitaire card game built with Next.js 16, React 19, an
 ### Development
 ```bash
 pnpm dev              # Start development server
-pnpm build            # Build for production (static export to out/)
+pnpm build            # Build for production
 pnpm start            # Start production server (not used for GitHub Pages)
 pnpm lint             # Run ESLint
 ```
 
-### Testing
+### Testing (available after PR1)
 ```bash
 pnpm test             # Run all tests once
 pnpm test:watch       # Run tests in watch mode
@@ -44,7 +44,7 @@ pnpm install --frozen-lockfile  # Install with locked versions (used in CI)
 ## Project Structure
 
 ```
-almaty/
+conductor-playground/
 ├── .github/
 │   └── workflows/
 │       ├── ci.yml           # Build & test CI (runs on PRs)

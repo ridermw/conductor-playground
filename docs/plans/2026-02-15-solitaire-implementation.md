@@ -6,7 +6,7 @@
 
 **Architecture:** Single-page Next.js app with static export. Pure TypeScript game engine (useReducer), DOM-based card rendering with CSS animations, Web Audio API for sounds, CSS custom properties for theming. No external dependencies beyond React/Next.js/Tailwind.
 
-**Tech Stack:** Next.js 16, React 19, TypeScript 5, Tailwind CSS 4, Vitest + React Testing Library
+**Tech Stack:** Next.js 16.1.6, React 19, TypeScript 5, Tailwind CSS 4, Vitest + React Testing Library
 
 **Repo:** `ridermw/conductor-playground` on GitHub (public). Each task below is an independent PR to `main`.
 
@@ -28,8 +28,8 @@
 - Modify: `next.config.ts`
 - Modify: `src/app/layout.tsx` (update metadata)
 - Modify: `src/app/page.tsx` (replace boilerplate with placeholder)
-- Create: `.github/workflows/ci.yml` (build + test on PRs and push to main)
-- Create: `.github/workflows/deploy.yml` (deploy to GitHub Pages on push to main)
+- Create: `.github/workflows/ci.yml` (build + test on PRs to `main`)
+- Create: `.github/workflows/deploy.yml` (run tests and deploy to GitHub Pages on push to `main`)
 - Create: `vitest.config.ts`
 - Create: `src/setupTests.ts`
 - Create: `src/__tests__/page.test.tsx` (smoke test)
@@ -575,7 +575,7 @@ Create `src/__tests__/components/GameProvider.test.tsx`:
 
 Create `src/components/Card.tsx`:
 
-- ~70px wide x ~100px tall (uses CSS custom properties)
+- 80px wide x 112px tall (uses CSS custom properties)
 - Front face: rank top-left + bottom-right, suit symbol center, red/black coloring
 - Back face: default green/gold pattern
 - CSS 3D transform for face-up/face-down

@@ -32,7 +32,7 @@ Pure TypeScript reducer, no UI dependencies.
 - `drawMode: 1 | 3`
 - `history: GameState[]` — previous states for undo
 
-**Actions:** `DEAL`, `DRAW`, `MOVE`, `UNDO`, `AUTO_COMPLETE`, `NEW_GAME`
+**Actions:** `NEW_GAME`, `DRAW`, `MOVE`, `AUTO_MOVE`, `UNDO`, `AUTO_COMPLETE`
 
 **Validation per move:**
 - Tableau: alternating colors, descending rank
